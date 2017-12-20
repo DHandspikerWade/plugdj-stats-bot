@@ -1,0 +1,18 @@
+{
+  "name": "plugdj-stats",
+  "version": "0.0.1",
+  "description": "Tracks stats on songs played",
+  "main": "index.js",
+  "scripts": {
+    "start": "node ./index.js -r nightblue",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Devin Handspiker-Wade <devin@handspiker-wade.com>",
+  "license": "ISC",
+  "dependencies": {
+    "jethro": "^4.3.2",
+    "minimist": "^1.2.0",
+    "plugapi": "^5.0.0",
+    "sqlite3": "^3.1.13"
+  }
+}
