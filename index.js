@@ -24,7 +24,7 @@ const db = new sqlite3.Database('./stats.sqlite');
 db.serialize();
 db.exec('PRAGMA foreign_keys = FALSE')
     .exec('CREATE TABLE IF NOT EXISTS `dj` ( `id` INTEGER NOT NULL, `username` TEXT, PRIMARY KEY(`id`) ) WITHOUT ROWID')
-    .exec('CREATE TABLE IF NOT EXISTS "play" ( `song_id` INTEGER NOT NULL, `room_slug` INTEGER NOT NULL, `dj_id` INTEGER NOT NULL, `woots` INTEGER NOT NULL DEFAULT 0, `grabs` INTEGER NOT NULL DEFAULT 0, `mehs` INTEGER NOT NULL DEFAULT 0, `skipped` INTEGER NOT NULL DEFAULT 0, `listeners` INTEGER NOT NULL DEFAULT 0 )')
+    .exec('CREATE TABLE IF NOT EXISTS "play" ( `song_id` INTEGER NOT NULL, `room_slug` INTEGER NOT NULL, `dj_id` INTEGER NOT NULL, `unixdate` INTEGER NOT NULL, `woots` INTEGER NOT NULL DEFAULT 0, `grabs` INTEGER NOT NULL DEFAULT 0, `mehs` INTEGER NOT NULL DEFAULT 0, `skipped` INTEGER NOT NULL DEFAULT 0, `listeners` INTEGER NOT NULL DEFAULT 0 )')
     .exec('CREATE TABLE IF NOT EXISTS `room` ( `slug` TEXT NOT NULL UNIQUE, `title` TEXT )')
     .exec('CREATE TABLE IF NOT EXISTS "song" ( `title` TEXT, `cid` TEXT, `author` TEXT, `id` INTEGER NOT NULL, PRIMARY KEY(`id`) ) WITHOUT ROWID')
     .exec('PRAGMA optimize')
@@ -77,8 +77,8 @@ function insertPlay(db, room, media, score, user) {
     if (media && 'id' in media) {
         logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to insert new play for song ' + media.id);
         if (user) {
-            db.run('INSERT INTO play (song_id, room_slug, dj_id, woots, grabs, mehs, skipped) VALUES (?,?,?,?,?,?,?)', 
-                [media.id, room, user.id, score.positive, score.grabs, score.negative, score.skipped ? 1 : 0]
+            db.run('INSERT INTO play (song_id, room_slug, unixdate, dj_id, woots, grabs, mehs, skipped, listeners) VALUES (?, ?,?,?,?,?,?,?,?)', 
+                [media.id, room, Math.floor(Date.now() / 1000), user.id, score.positive, score.grabs, score.negative, score.skipped ? 1 : 0, score.listeners]
             );
 
             return true;
@@ -106,7 +106,7 @@ bot.on('error', reconnect);
 
 bot.on(PlugAPI.events.ROOM_JOIN, (room) => {
     logger.debug(LOGGER_DEFAULT_SOURCE, 'Recieved ROOM_JOIN event');
-    console.log(`Joined ${room}`);
+    logger.info(LOGGER_DEFAULT_SOURCE, `Joined ${room}`);
 });
 
 bot.on(PlugAPI.events.MODERATE_SKIP, (data) => {
