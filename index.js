@@ -1,13 +1,11 @@
 const PlugAPI = require('plugapi');
 const sqlite3 = require('sqlite3');
 const argv = require('minimist')(process.argv.slice(2));
-const logger = new require("jethro")();
+const logger = new (require("jethro"))();
 const stdin = process.stdin;
 
 const ROOM = argv.r;
 const LOGGER_DEFAULT_SOURCE = 'StatsBot';
-
-var room_statement;
 
 if (!ROOM) {
     logger.error(LOGGER_DEFAULT_SOURCE, 'No provided room slug');
@@ -41,6 +39,17 @@ if ('e' in argv && 'p' in argv) {
 const bot = new PlugAPI(botParams);
 bot.setLogger(logger);
 
+// Sleep mode detection
+let lastHeartbeat = Date.now();
+setInterval(() => {
+    if (Date.now() - lastHeartbeat > 25e3) {
+        logger.warn(LOGGER_DEFAULT_SOURCE, 'Heartbeat skipped');
+        reconnect();
+    }
+
+    lastHeartbeat = Date.now();
+}, 20e3)
+
 function cleanup () {
     logger.info(LOGGER_DEFAULT_SOURCE, 'Performing cleanup');
     bot.close(false); logger.debug(LOGGER_DEFAULT_SOURCE, 'Closing PlugDJ connection');
@@ -62,13 +71,15 @@ function newDj(db, dj) {
 }
 
 function newSong(db, media) {
-    logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to update song ' + media.id);
     db.get('SELECT id FROM song WHERE id = ?', media.id, (err, row) => {
         if (err) throw err;
 
         if (!row) {
             logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to insert song ' + media.id);
             db.run('INSERT INTO song (id, cid, author, title) VALUES (?,?,?,?)', media.id, media.cid, media.author, media.title);
+        } else {
+            logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to update song ' + media.id);
+            db.run('UPDATE song  SET cid = ?, author = ?, title = ? WHERE id = ?', media.cid, media.author, media.title, media.id);
         }
     });
 }
@@ -99,7 +110,21 @@ stdin.on('data', (key) => {
 });
 
 // Wait a couple seconds so not to spam a room
-const reconnect = () => { logger.warn(LOGGER_DEFAULT_SOURCE, 'Trying to reconnect'); setTimeout(() => {bot.connect(ROOM);}, 4000); };
+let _isReconnecting = false;
+const reconnect = () => { 
+    logger.warn(LOGGER_DEFAULT_SOURCE, 'Trying to reconnect'); 
+    _isReconnecting = true; 
+
+    setTimeout(() => { 
+        bot.connect(ROOM); 
+
+        if (bot.getDJ() && bot.getMedia()) {
+            newDj(db, bot.getDJ());
+            newSong(db, bot.getMedia());
+        }
+        _isReconnecting = false;
+    }, 4000); 
+};
 
 bot.on('close', reconnect);
 bot.on('error', reconnect);
@@ -121,6 +146,15 @@ bot.on(PlugAPI.events.ADVANCE, (data) => {
         if (data.media && latest_song !== data.media.id) { //Only log once. PlugDj sends it multiple times when connecting. Updates are fine; multiple logs are annoying.
             logger.info(LOGGER_DEFAULT_SOURCE, 'Now playing: ' + data.media.title);
             latest_song = data.media.id;
+
+            setTimeout(() => {
+                logger.debug(LOGGER_DEFAULT_SOURCE, 'Checking connection status');
+                let currentMedia = bot.getMedia();
+                if (currentMedia && data.media.cid == currentMedia.cid) {
+                    logger.debug('Song has run long. Attempting reconnection');
+                    reconnect();
+                }
+            }, (data.media.duration + 5) * 1000); // Just use duration because 
         }
 
         if (data.currentDJ) {
