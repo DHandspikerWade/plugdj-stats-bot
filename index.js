@@ -3,7 +3,7 @@ const sqlite3 = require('sqlite3');
 const argv = require('minimist')(process.argv.slice(2));
 const logger = new (require("jethro"))();
 
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const ROOM = argv.r;
 const LOGGER_DEFAULT_SOURCE = 'StatsBot';
@@ -35,6 +35,7 @@ db.exec('PRAGMA foreign_keys = FALSE')
 
 db.get('PRAGMA user_version;', (err, row) => {
     if (err) throw err;
+    let statement;
 
     switch (row.user_version * 1) {
         case 0:
@@ -43,6 +44,24 @@ db.get('PRAGMA user_version;', (err, row) => {
                 .exec('CREATE TABLE IF NOT EXISTS "play" ( `song_id` INTEGER NOT NULL, `room_slug` INTEGER NOT NULL, `dj_id` INTEGER NOT NULL, `unixdate` INTEGER NOT NULL, `woots` INTEGER NOT NULL DEFAULT 0, `grabs` INTEGER NOT NULL DEFAULT 0, `mehs` INTEGER NOT NULL DEFAULT 0, `skipped` INTEGER NOT NULL DEFAULT 0, `listeners` INTEGER NOT NULL DEFAULT 0 )')
                 .exec('CREATE TABLE IF NOT EXISTS `room` ( `slug` TEXT NOT NULL UNIQUE, `title` TEXT )')
                 .exec('CREATE TABLE IF NOT EXISTS "song" ( `title` TEXT, `cid` TEXT, `author` TEXT, `id` INTEGER NOT NULL, PRIMARY KEY(`id`) ) WITHOUT ROWID');
+        case 1:
+            db.exec('CREATE TABLE song_copied AS SELECT * FROM song WHERE 0 = 0;')
+                .exec('DROP TABLE song;')
+                .exec('CREATE TABLE "song" ( `id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, `title` TEXT, `cid` TEXT, `author` TEXT )')
+                .exec('INSERT into song (author, title, cid)  select max(author), max(title), cid FROM song_copied GROUP BY cid');
+
+            statement = db.prepare('UPDATE play SET song_id = ? WHERE room_slug = ? AND unixdate = ?');
+            db.each('SELECT room_slug, unixdate, song_id FROM play;', (err, playRow) => {
+                if (err) throw err;
+
+                db.get('SELECT song.id FROM song JOIN song_copied ON song.cid = song_copied.cid WHERE song_copied.id = ?', [playRow.song_id], (err, songRow) => {
+                    statement.run([songRow.id, playRow.room_slug, playRow.unixdate]);
+                });
+            }, () => {
+                db.exec('DROP TABLE song_copied');
+            });
+
+
         default: 
             break;
     }
@@ -85,26 +104,30 @@ function newDj(db, dj) {
 }
 
 function newSong(db, media) {
-    db.get('SELECT id FROM song WHERE id = ?', media.id, (err, row) => {
+    db.get('SELECT id FROM song WHERE cid = ?', media.cid, (err, row) => {
         if (err) throw err;
 
         if (!row) {
             logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to insert song ' + media.id);
-            db.run('INSERT INTO song (id, cid, author, title) VALUES (?,?,?,?)', media.id, media.cid, media.author, media.title);
+            db.run('INSERT INTO song (cid, author, title) VALUES (?,?,?)', media.cid, media.author, media.title);
         } else {
-            logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to update song ' + media.id);
-            db.run('UPDATE song  SET cid = ?, author = ?, title = ? WHERE id = ?', media.cid, media.author, media.title, media.id);
+            logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to update song ');
+            db.run('UPDATE song  SET cid = ?, author = ?, title = ? WHERE cid = ?', media.cid, media.author, media.title, media.cid);
         }
     });
 }
 
 function insertPlay(db, room, media, score, user) {
-    if (media && 'id' in media) {
-        logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to insert new play for song ' + media.id);
+    if (media && 'cid' in media) {
+        logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to insert new play for song ' + media.cid);
         if (user) {
-            db.run('INSERT INTO play (song_id, room_slug, unixdate, dj_id, woots, grabs, mehs, skipped, listeners) VALUES (?, ?,?,?,?,?,?,?,?)', 
-                [media.id, room, Math.floor(Date.now() / 1000), user.id, score.positive, score.grabs, score.negative, score.skipped ? 1 : 0, score.listeners]
-            );
+            db.get('SELECT id FROM song WHERE cid = ?', [media.cid], (err, row) => {
+                if (err || !row) throw 'Song ID mismatch';
+
+                db.run('INSERT INTO play (song_id, room_slug, unixdate, dj_id, woots, grabs, mehs, skipped, listeners) VALUES (?, ?,?,?,?,?,?,?,?)', 
+                    [row.id, room, Math.floor(Date.now() / 1000), user.id, score.positive, score.grabs, score.negative, score.skipped ? 1 : 0, score.listeners]
+                );
+            });
 
             return true;
         }
