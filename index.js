@@ -2,7 +2,6 @@ const PlugAPI = require('plugapi');
 const sqlite3 = require('sqlite3');
 const argv = require('minimist')(process.argv.slice(2));
 const logger = new (require("jethro"))();
-const stdin = process.stdin;
 
 const DB_VERSION = 1;
 
@@ -15,9 +14,6 @@ if (!ROOM) {
 }
 
 logger.addToSourceWhitelist('console', LOGGER_DEFAULT_SOURCE);
-
-stdin.setRawMode(true);
-stdin.setEncoding('utf8');
 
 let botParams;
 if ('e' in argv && 'p' in argv) {
@@ -117,14 +113,10 @@ function insertPlay(db, room, media, score, user) {
     return false;
 }
 
-stdin.on('data', (key) => {
-    //This is a piss-poor user interface
-    // Letter "q" to quit
-    if (key == '\u0071') {
-        cleanup();
-        console.log('Exitting...');
-        process.exit(0);
-    }
+process.on('SIGINT', () => {
+    cleanup();
+    console.log('Exitting...');
+    process.exit(0);
 });
 
 // Wait a couple seconds so not to spam a room
