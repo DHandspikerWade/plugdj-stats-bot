@@ -4,6 +4,8 @@ const argv = require('minimist')(process.argv.slice(2));
 const logger = new (require("jethro"))();
 const stdin = process.stdin;
 
+const DB_VERSION = 1;
+
 const ROOM = argv.r;
 const LOGGER_DEFAULT_SOURCE = 'StatsBot';
 
@@ -17,27 +19,43 @@ logger.addToSourceWhitelist('console', LOGGER_DEFAULT_SOURCE);
 stdin.setRawMode(true);
 stdin.setEncoding('utf8');
 
-logger.info(LOGGER_DEFAULT_SOURCE,'Creating or verifying database.');
-const db = new sqlite3.Database('./stats.sqlite');
-db.serialize();
-db.exec('PRAGMA foreign_keys = FALSE')
-    .exec('CREATE TABLE IF NOT EXISTS `dj` ( `id` INTEGER NOT NULL, `username` TEXT, PRIMARY KEY(`id`) ) WITHOUT ROWID')
-    .exec('CREATE TABLE IF NOT EXISTS "play" ( `song_id` INTEGER NOT NULL, `room_slug` INTEGER NOT NULL, `dj_id` INTEGER NOT NULL, `unixdate` INTEGER NOT NULL, `woots` INTEGER NOT NULL DEFAULT 0, `grabs` INTEGER NOT NULL DEFAULT 0, `mehs` INTEGER NOT NULL DEFAULT 0, `skipped` INTEGER NOT NULL DEFAULT 0, `listeners` INTEGER NOT NULL DEFAULT 0 )')
-    .exec('CREATE TABLE IF NOT EXISTS `room` ( `slug` TEXT NOT NULL UNIQUE, `title` TEXT )')
-    .exec('CREATE TABLE IF NOT EXISTS "song" ( `title` TEXT, `cid` TEXT, `author` TEXT, `id` INTEGER NOT NULL, PRIMARY KEY(`id`) ) WITHOUT ROWID')
-    .exec('PRAGMA optimize')
-    .exec('PRAGMA auto_vacuum = FULL');
-
-db.parallelize();
 let botParams;
 if ('e' in argv && 'p' in argv) {
-    botParams = {email: argv.e, password: argv.p};
+    botParams = { email: argv.e, password: argv.p };
 } else {
-    botParams = {guest: true};
+    botParams = { guest: true };
 }
 
 const bot = new PlugAPI(botParams);
 bot.setLogger(logger);
+
+logger.info(LOGGER_DEFAULT_SOURCE,'Creating or verifying database.');
+const db = new sqlite3.Database('./stats.sqlite');
+
+db.serialize();
+db.exec('PRAGMA foreign_keys = FALSE')
+    .exec('PRAGMA optimize')
+    .exec('PRAGMA auto_vacuum = FULL');
+
+db.get('PRAGMA user_version;', (err, row) => {
+    if (err) throw err;
+
+    switch (row.user_version * 1) {
+        case 0:
+            // This case may run on databases that existed for DB versioning. Cannot assume the tables don't exist.
+            db.exec('CREATE TABLE IF NOT EXISTS `dj` ( `id` INTEGER NOT NULL, `username` TEXT, PRIMARY KEY(`id`) ) WITHOUT ROWID')
+                .exec('CREATE TABLE IF NOT EXISTS "play" ( `song_id` INTEGER NOT NULL, `room_slug` INTEGER NOT NULL, `dj_id` INTEGER NOT NULL, `unixdate` INTEGER NOT NULL, `woots` INTEGER NOT NULL DEFAULT 0, `grabs` INTEGER NOT NULL DEFAULT 0, `mehs` INTEGER NOT NULL DEFAULT 0, `skipped` INTEGER NOT NULL DEFAULT 0, `listeners` INTEGER NOT NULL DEFAULT 0 )')
+                .exec('CREATE TABLE IF NOT EXISTS `room` ( `slug` TEXT NOT NULL UNIQUE, `title` TEXT )')
+                .exec('CREATE TABLE IF NOT EXISTS "song" ( `title` TEXT, `cid` TEXT, `author` TEXT, `id` INTEGER NOT NULL, PRIMARY KEY(`id`) ) WITHOUT ROWID');
+        default: 
+            break;
+    }
+
+    db.run('PRAGMA user_version = ' + DB_VERSION);
+
+    logger.info(LOGGER_DEFAULT_SOURCE, `Atempting to connect to "${ROOM}"`);
+    bot.connect(ROOM);
+});
 
 // Sleep mode detection
 let lastHeartbeat = Date.now();
@@ -174,7 +192,3 @@ bot.on(PlugAPI.events.BAN, (data) => {
     cleanup();
     process.exit(0);
 })
-
-logger.info(LOGGER_DEFAULT_SOURCE, `Atempting to connect to "${ROOM}"`);
-bot.connect(ROOM);
-
