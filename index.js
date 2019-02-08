@@ -22,6 +22,8 @@ if ('e' in argv && 'p' in argv) {
     botParams = { guest: true };
 }
 
+const QUICK_FAIL = !!argv.bail
+
 const bot = new PlugAPI(botParams);
 bot.setLogger(logger);
 
@@ -145,17 +147,27 @@ process.on('SIGINT', () => {
 // Wait a couple seconds so not to spam a room
 let _isReconnecting = false;
 const reconnect = () => { 
+    if (QUICK_FAIL) {
+        cleanup();
+        process.exit(1);
+        return;
+    } 
+
     logger.warn(LOGGER_DEFAULT_SOURCE, 'Trying to reconnect'); 
     _isReconnecting = true; 
 
     setTimeout(() => { 
-        bot.connect(ROOM); 
+        bot.close(true);
 
-        if (bot.getDJ() && bot.getMedia()) {
-            newDj(db, bot.getDJ());
-            newSong(db, bot.getMedia());
-        }
-        _isReconnecting = false;
+        setTimeout(() => {
+            bot.connect(ROOM); 
+
+            if (bot.getDJ() && bot.getMedia()) {
+                newDj(db, bot.getDJ());
+                newSong(db, bot.getMedia());
+            }
+            _isReconnecting = false;
+        }, 1000);
     }, 4000); 
 };
 

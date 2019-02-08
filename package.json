@@ -8,7 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Devin Handspiker-Wade <devin@handspiker-wade.com>",
-  "repository": "bitbucket:handspiker2/plugdj-stats-bot",
+  "repository": "gitlab::DHandspikerWade/plugdj-stats-bot",
   "license": "ISC",
   "dependencies": {
     "jethro": "^4.3.2",
