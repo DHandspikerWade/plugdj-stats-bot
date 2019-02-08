@@ -1,3 +1,5 @@
 node_modules
 stats.sqlite
 package-lock.json
+.vscode
+config.json

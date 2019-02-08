@@ -1,5 +1,6 @@
 const PlugAPI = require('plugapi');
 const sqlite3 = require('sqlite3');
+const fs = require('fs');
 const argv = require('minimist')(process.argv.slice(2));
 const logger = new (require("jethro"))();
 
@@ -23,6 +24,11 @@ if ('e' in argv && 'p' in argv) {
 }
 
 const QUICK_FAIL = !!argv.bail
+if (!fs.existsSync('config.json')) {
+    fs.appendFileSync('config.json', '{}');
+}
+
+let config = JSON.parse(fs.readFileSync('config.json'));  
 
 const bot = new PlugAPI(botParams);
 bot.setLogger(logger);
@@ -89,6 +95,8 @@ function cleanup () {
     logger.info(LOGGER_DEFAULT_SOURCE, 'Performing cleanup');
     bot.close(false); logger.debug(LOGGER_DEFAULT_SOURCE, 'Closing PlugDJ connection');
     db.close(); logger.debug(LOGGER_DEFAULT_SOURCE, 'Closing SQLite database');
+
+    fs.writeFileSync('config.json', JSON.stringify(config));
 }
 
 function newDj(db, dj) {
@@ -181,7 +189,7 @@ bot.on(PlugAPI.events.ROOM_JOIN, (room) => {
 
 bot.on(PlugAPI.events.MODERATE_SKIP, (data) => {
     logger.debug(LOGGER_DEFAULT_SOURCE, 'Recieved MODERATE_SKIP event');
-    console.log(`${data.user.username} Skipped the song`);
+    logger.info(LOGGER_DEFAULT_SOURCE, `${data.user.username} Skipped the song`);
  });
 
 let latest_song;
@@ -196,8 +204,15 @@ bot.on(PlugAPI.events.ADVANCE, (data) => {
                 logger.debug(LOGGER_DEFAULT_SOURCE, 'Checking connection status');
                 let currentMedia = bot.getMedia();
                 if (currentMedia && data.media.cid == currentMedia.cid) {
-                    logger.debug('Song has run long. Attempting reconnection');
-                    reconnect();
+                    logger.debug(LOGGER_DEFAULT_SOURCE, 'Song has run long. Attempting reconnection. Role:' + bot.getSelf().role );
+
+                    if (bot.getSelf() && bot.getSelf().role >= PlugAPI.ROOM_ROLE.BOUNCER){
+                        if (config.skipEnabled) {
+                            bot.moderateForceSkip();
+                        }
+                    } else {
+                        reconnect();
+                    }
                 }
             }, (data.media.duration + 5) * 1000); // Just use duration because 
         }
@@ -219,3 +234,16 @@ bot.on(PlugAPI.events.BAN, (data) => {
     cleanup();
     process.exit(0);
 })
+
+bot.on('command:enableLongSkip', (data) => {
+    logger.info(LOGGER_DEFAULT_SOURCE, 'Got comand: ' + data.args[0]);
+    if (data.havePermission(PlugAPI.ROOM_ROLE.BOUNCER)) {
+        if (data.args[0]== 'yes') {
+            config.skipEnabled = true;
+            data.respondTimeout('Skipping stuck songs.', 10);
+        } else if (data.args[0] == 'no') {
+            config.skipEnabled = false;
+            data.respondTimeout('Not skipping stuck songs.', 10);
+        }
+     }
+});
