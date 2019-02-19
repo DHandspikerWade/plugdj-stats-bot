@@ -146,11 +146,14 @@ function insertPlay(db, room, media, score, user) {
     return false;
 }
 
-process.on('SIGINT', () => {
+const shutdown = () => {
     cleanup();
     console.log('Exitting...');
     process.exit(0);
-});
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 // Wait a couple seconds so not to spam a room
 let _isReconnecting = false;
@@ -214,7 +217,7 @@ bot.on(PlugAPI.events.ADVANCE, (data) => {
                         reconnect();
                     }
                 }
-            }, (data.media.duration + 5) * 1000); // Just use duration because 
+            }, (data.media.duration - bot.getTimeElapsed() + 5) * 1000); // Just use duration because 
         }
 
         if (data.currentDJ) {
