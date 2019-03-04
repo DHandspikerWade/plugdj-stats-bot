@@ -192,6 +192,10 @@ bot.on(PlugAPI.events.MODERATE_SKIP, (data) => {
     logger.info(LOGGER_DEFAULT_SOURCE, `${data.user.username} Skipped the song`);
  });
 
+ bot.on(PlugAPI.events.EARN, (data) => {
+    logger.info(LOGGER_DEFAULT_SOURCE, `You are currently level ${data.level} with: ${data.pp} PP and ${data.xp} XP `);
+ });
+
 let latest_song;
 bot.on(PlugAPI.events.ADVANCE, (data) => {
     logger.debug(LOGGER_DEFAULT_SOURCE, 'Recieved ADVANCE event');
