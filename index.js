@@ -243,14 +243,14 @@ bot.on(PlugAPI.events.BAN, (data) => {
 })
 
 bot.on('command:enableLongSkip', (data) => {
-    logger.info(LOGGER_DEFAULT_SOURCE, 'Got comand: ' + data.args[0]);
     if (data.havePermission(PlugAPI.ROOM_ROLE.BOUNCER)) {
+        logger.info(LOGGER_DEFAULT_SOURCE, 'Got comand: enableLongSkip ' + JSON.stringify(data.args));
         if (data.args[0]== 'yes') {
             config.skipEnabled = true;
-            data.respondTimeout('Skipping stuck songs.', 10);
+            data.respond('Skipping stuck songs.');
         } else if (data.args[0] == 'no') {
             config.skipEnabled = false;
-            data.respondTimeout('Not skipping stuck songs.', 10);
+            data.respond('Not skipping stuck songs.');
         }
      }
 });
