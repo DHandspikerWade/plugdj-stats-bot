@@ -17,7 +17,7 @@ if (!ROOM) {
 logger.addToSourceWhitelist('console', LOGGER_DEFAULT_SOURCE);
 
 let botParams;
-if ('e' in argv && 'p' in argv) {
+if ('e' in argv && 'p' in argv && typeof argv.e === 'string' && typeof argv.p  === 'string') {
     botParams = { email: argv.e, password: argv.p };
 } else {
     botParams = { guest: true };
