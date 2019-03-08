@@ -32,6 +32,8 @@ let config = JSON.parse(fs.readFileSync('config.json'));
 
 const bot = new PlugAPI(botParams);
 bot.setLogger(logger);
+bot.deleteCommands = false;
+
 
 logger.info(LOGGER_DEFAULT_SOURCE,'Creating or verifying database.');
 const db = new sqlite3.Database('./stats.sqlite');
@@ -76,7 +78,7 @@ db.get('PRAGMA user_version;', (err, row) => {
 
     db.run('PRAGMA user_version = ' + DB_VERSION);
 
-    logger.info(LOGGER_DEFAULT_SOURCE, `Atempting to connect to "${ROOM}"`);
+    logger.info(LOGGER_DEFAULT_SOURCE, `Attempting to connect to "${ROOM}"`);
     bot.connect(ROOM);
 });
 
@@ -253,4 +255,19 @@ bot.on('command:enableLongSkip', (data) => {
             data.respond('Not skipping stuck songs.');
         }
      }
+});
+
+bot.on('command:enableAutoWoot', (data) => {
+    if (config.owner && data.from.username.toLowerCase() == config.owner.toLowerCase()) {
+        logger.info(LOGGER_DEFAULT_SOURCE, 'Got comand: enableAutoWoot ' + JSON.stringify(data.args));
+        if (data.args[0]== 'yes') {
+            config.autoWoot = true;
+            data.respond('Every song is great.');
+        } else if (data.args[0] == 'no') {
+            config.autoWoot = false;
+            data.respond('I\'ll just listen.');
+        }
+    } else if (config.owner){
+        data.respond(`You're not @${config.owner}`)
+    }
 });
