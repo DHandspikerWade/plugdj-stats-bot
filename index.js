@@ -224,6 +224,10 @@ bot.on(PlugAPI.events.ADVANCE, (data) => {
                     }
                 }
             }, (data.media.duration - bot.getTimeElapsed() + 5) * 1000); // Just use duration because 
+
+            if (config.autoWoot && bot.getSelf()) {
+                bot.woot();
+            }
         }
 
         if (data.currentDJ) {
