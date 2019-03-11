@@ -4,9 +4,11 @@ const fs = require('fs');
 const argv = require('minimist')(process.argv.slice(2));
 const logger = new (require("jethro"))();
 
+require('dotenv').config()
+
 const DB_VERSION = 2;
 
-const ROOM = argv.r;
+const ROOM = typeof argv.r === 'string' ? argv.r : process.env.PLUGDJ_ROOM;
 const LOGGER_DEFAULT_SOURCE = 'StatsBot';
 
 if (!ROOM) {
@@ -16,11 +18,22 @@ if (!ROOM) {
 
 logger.addToSourceWhitelist('console', LOGGER_DEFAULT_SOURCE);
 
-let botParams;
+let botParams = {};
 if ('e' in argv && 'p' in argv && typeof argv.e === 'string' && typeof argv.p  === 'string') {
-    botParams = { email: argv.e, password: argv.p };
-} else {
-    botParams = { guest: true };
+    botParams.email = argv.e;  
+    botParams.password = argv.p;
+}
+
+if (process.env.PLUGDJ_EMAIL && !botParams.email) {
+    botParams.email = process.env.PLUGDJ_EMAIL;
+}
+
+if (process.env.PLUGDJ_PASS && !botParams.password) {
+    botParams.password = process.env.PLUGDJ_PASS;
+}
+
+if (!(botParams.password && botParams.email)) {
+    botParams.guest = true;
 }
 
 const QUICK_FAIL = !!argv.bail

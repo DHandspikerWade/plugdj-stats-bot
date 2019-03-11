@@ -4,8 +4,8 @@ RUN cd ./app && npm install -g node-gyp
 RUN cd ./app && npm install
 COPY index.js ./app/
 
-ENV username ''
-ENV password ''
-ENV room ' '
+ENV PLUGDJ_EMAIL ''
+ENV PLUGDJ_PASS ''
+ENV PLUGDJ_ROOM ''
 
-CMD cd ./app && node ./index.js -e "$username" -p "$password" -r "$room" --bail
+CMD cd ./app && node ./index.js --bail
