@@ -1,6 +1,6 @@
 const LOGGER_DEFAULT_SOURCE = 'Redis';
 
-module.exports = (bot, logger) => {
+module.exports = (logger) => {
     const redis = require('redis');
     const redisOptions = {};
     const prefix = process.env.PLUGDJ_REDIS_PREFIX || 'PlugDJ';
@@ -23,6 +23,8 @@ module.exports = (bot, logger) => {
 
     logger.info(LOGGER_DEFAULT_SOURCE, 'Attempting Redis connection');
     const client = redis.createClient(redisOptions);
+
+    client.hsetnx(prefix + '.config', 'owner', '');
 
     return {
         cleanup: function() {
@@ -61,6 +63,52 @@ module.exports = (bot, logger) => {
                 author: media.author, 
                 title: media.title
             }));
-        }
+        },
+        getConfig: function(key, callback) {
+            let returnPromise = new Promise((resolve, reject) => {
+                client.hget(prefix + '.config', key, (err, reply) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        if (!reply || reply === 'false' || reply === 'null' || reply === 'OK') {
+                            resolve(false);
+                        } else if (reply === 'true') {
+                            resolve(true);
+                        } else {
+                            resolve(reply ? JSON.parse(reply) : false);
+                        }
+                    }
+                });
+            });
+
+            returnPromise.then(callback, (error) => {
+                logger.error(LOGGER_DEFAULT_SOURCE, error);
+            });
+
+            return returnPromise;
+        },
+        setConfig: function(key, value) {
+            let returnPromise = new Promise((resolve, reject) => {
+                client.hset(prefix + '.config', key, JSON.stringify(value), (err, reply) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        if (!reply) {
+                            resolve(false);
+                        } else if (reply === 'true' || reply === 'OK') {
+                            resolve(true);
+                        } else {
+                            resolve(reply);
+                        }
+                    }
+                });
+            });
+
+            returnPromise.then(null, (error) => {
+                logger.error(LOGGER_DEFAULT_SOURCE, error);
+            });
+
+            return returnPromise;
+        },
     };
 };

@@ -4,13 +4,80 @@ const argv = require('minimist')(process.argv.slice(2));
 const logger = new (require("jethro"))();
 
 require('dotenv').config();
-const ROOM = typeof argv.r === 'string' ? argv.r : process.env.PLUGDJ_ROOM;
-const LOGGER_DEFAULT_SOURCE = 'StatsBot';
 
-if (!ROOM) {
-    logger.error(LOGGER_DEFAULT_SOURCE, 'No provided room slug');
-    process.exit(1);
+let dataHandle;
+if (process.env.PLUGDJ_REDIS) {
+    dataHandle = require('./redis')(logger);
+} else {
+    dataHandle = require('./sqlite')(logger);
 }
+
+if (!dataHandle.getConfig) {
+    dataHandle.getConfig = (() => {
+        const fsp = fs.promises;
+
+        if (!fs.existsSync('config.json')) {
+            fs.appendFileSync('config.json', '{}');
+        }
+
+        return function(key, callback) {
+            let returnPromise = new Promise((resolve) => {
+                fsp.readFile('config.json', 'utf8').then((contents) => {
+                    resolve(JSON.parse(contents)[key]);
+                }, () => {
+                    logger.error(LOGGER_DEFAULT_SOURCE, 'Failed to read config.json.');
+                    resolve(false);
+                });
+            });
+
+            if (callback) {
+                returnPromise.then(callback);
+            }
+
+            return returnPromise;
+        };
+    })();
+}
+
+if (!dataHandle.setConfig) {
+    dataHandle.setConfig = (() => {
+        const fsp = fs.promises;
+        
+        if (!fs.existsSync('config.json')) {
+            fs.appendFileSync('config.json', '{}');
+        }
+
+        return function(key, value) {
+            let returnPromise = new Promise((resolve, reject) => {
+                fsp.readFile('config.json', 'utf8').then((contents) => {
+                    let data = JSON.parse(contents);
+                    data[key] = value;
+
+                    fsp.writeFile('config.json', JSON.stringify(data), 'utf8').then(() => {
+                        resolve();
+                    }, reject);
+
+                }, (reason) => {
+                    reject('Failed to read config.json. ' + reason);
+                });
+            });
+
+            return returnPromise;
+        };
+    })();
+}
+
+let ROOM;
+if (typeof argv.r === 'string') {
+    ROOM = argv.r;
+} else if (process.env.PLUGDJ_ROOM) {
+    ROOM = process.env.PLUGDJ_ROOM;
+} else {
+    // TODO: this is going to need restructure to work
+    // ROOM = dataHandle.getConfig('room');
+}
+
+const LOGGER_DEFAULT_SOURCE = 'StatsBot';
 
 logger.addToSourceWhitelist('console', LOGGER_DEFAULT_SOURCE);
 
@@ -33,22 +100,15 @@ if (!(botParams.password && botParams.email)) {
 }
 
 const QUICK_FAIL = !!argv.bail
-if (!fs.existsSync('config.json')) {
-    fs.appendFileSync('config.json', '{}');
-}
 
-let config = JSON.parse(fs.readFileSync('config.json'));  
+if (!ROOM) {
+    logger.error(LOGGER_DEFAULT_SOURCE, 'No provided room slug');
+    process.exit(1);
+}
 
 const bot = new PlugAPI(botParams);
 bot.setLogger(logger);
 bot.deleteCommands = false;
-
-let dataHandle;
-if (process.env.PLUGDJ_REDIS) {
-    dataHandle = require('./redis')(bot, logger);
-} else {
-    dataHandle = require('./sqlite')(bot, logger);
-}
 
 logger.info(LOGGER_DEFAULT_SOURCE, `Attempting to connect to "${ROOM}"`);
 bot.connect(ROOM);
@@ -68,7 +128,6 @@ function cleanup () {
     logger.info(LOGGER_DEFAULT_SOURCE, 'Performing cleanup');
     bot.close(false); logger.debug(LOGGER_DEFAULT_SOURCE, 'Closing PlugDJ connection');
     dataHandle.cleanup();
-    fs.writeFileSync('config.json', JSON.stringify(config));
 }
 
 const shutdown = () => {
@@ -139,17 +198,19 @@ bot.on(PlugAPI.events.ADVANCE, (data) => {
                     logger.debug(LOGGER_DEFAULT_SOURCE, 'Song has run long. Attempting reconnection. Role:' + bot.getSelf().role );
 
                     if (bot.getSelf() && bot.getSelf().role >= PlugAPI.ROOM_ROLE.BOUNCER){
-                        if (config.skipEnabled) {
-                            bot.moderateForceSkip();
-                        }
+                        dataHandle.getConfig('skipEnabled', (value) => {
+                            value && bot.moderateForceSkip();
+                        });
                     } else {
                         reconnect();
                     }
                 }
             }, (data.media.duration - bot.getTimeElapsed() + 5) * 1000); // Just use duration because 
 
-            if (config.autoWoot && bot.getSelf()) {
-                bot.woot();
+            if (bot.getSelf()) {
+                dataHandle.getConfig('autoWoot', (value) => {
+                    value && bot.woot();
+                });                
             }
         }
 
@@ -175,26 +236,29 @@ bot.on('command:enableLongSkip', (data) => {
     if (data.havePermission(PlugAPI.ROOM_ROLE.BOUNCER)) {
         logger.info(LOGGER_DEFAULT_SOURCE, 'Got comand: enableLongSkip ' + JSON.stringify(data.args));
         if (data.args[0]== 'yes') {
-            config.skipEnabled = true;
+            dataHandle.setConfig('skipEnabled', true);
             data.respond('Skipping stuck songs.');
         } else if (data.args[0] == 'no') {
-            config.skipEnabled = false;
+            dataHandle.setConfig('skipEnabled', false);
             data.respond('Not skipping stuck songs.');
         }
      }
 });
 
 bot.on('command:enableAutoWoot', (data) => {
-    if (config.owner && data.from.username.toLowerCase() == config.owner.toLowerCase()) {
-        logger.info(LOGGER_DEFAULT_SOURCE, 'Got comand: enableAutoWoot ' + JSON.stringify(data.args));
-        if (data.args[0]== 'yes') {
-            config.autoWoot = true;
-            data.respond('Every song is great.');
-        } else if (data.args[0] == 'no') {
-            config.autoWoot = false;
-            data.respond('I\'ll just listen.');
+    dataHandle.getConfig('owner', (owner) => {
+        if (owner && data.from.username.toLowerCase() == owner.toLowerCase()) {
+            logger.info(LOGGER_DEFAULT_SOURCE, 'Got comand: enableAutoWoot ' + JSON.stringify(data.args));
+            if (data.args[0]== 'yes') {
+                dataHandle.setConfig('autoWoot', true);
+                data.respond('Every song is great.');
+            } else if (data.args[0] == 'no') {
+                dataHandle.setConfig('autoWoot', false);
+                data.respond('I\'ll just listen.');
+            }
+        } else if (owner){
+            data.respond(`You're not @${owner}`)
         }
-    } else if (config.owner){
-        data.respond(`You're not @${config.owner}`)
-    }
+    });
+
 });

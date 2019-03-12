@@ -1,7 +1,7 @@
 const LOGGER_DEFAULT_SOURCE = 'SQLite';
 const DB_VERSION = 2;
 
-module.exports = (bot, logger) => {
+module.exports = (logger) => {
     const sqlite3 = require('sqlite3');
 
     logger.info(LOGGER_DEFAULT_SOURCE,'Creating or verifying database.');
