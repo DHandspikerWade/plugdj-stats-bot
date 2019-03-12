@@ -43,7 +43,12 @@ const bot = new PlugAPI(botParams);
 bot.setLogger(logger);
 bot.deleteCommands = false;
 
-const dataHandle = require('./sqlite')(bot, logger);
+let dataHandle;
+if (process.env.PLUGDJ_REDIS) {
+    dataHandle = require('./redis')(bot, logger);
+} else {
+    dataHandle = require('./sqlite')(bot, logger);
+}
 
 logger.info(LOGGER_DEFAULT_SOURCE, `Attempting to connect to "${ROOM}"`);
 bot.connect(ROOM);
