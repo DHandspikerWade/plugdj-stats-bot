@@ -1,8 +1,8 @@
 FROM node:lts-slim
-COPY package.json ./app/
-RUN cd ./app && npm install -g node-gyp
-RUN cd ./app && npm install
-COPY index.js ./app/
+RUN mkdir /app && cd ./app && npm install -g node-gyp
+COPY ./ ./app/
+RUN cd ./app && npm ci
+
 
 ENV PLUGDJ_EMAIL ''
 ENV PLUGDJ_PASS ''
