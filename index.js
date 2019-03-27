@@ -156,11 +156,13 @@ const reconnect = () => {
 
         setTimeout(() => {
             bot.connect(ROOM); 
-
-            if (bot.getDJ() && bot.getMedia()) {
-                dataHandle.newDj(bot.getDJ());
-                dataHandle.newSong(bot.getMedia());
-            }
+            
+            dataHandle.getConfig('storeHistory', (value) => {
+                if (bot.getDJ() && bot.getMedia()) {
+                    dataHandle.newDj(bot.getDJ());
+                    dataHandle.newSong(bot.getMedia());
+                }
+            });
             _isReconnecting = false;
         }, 1000);
     }, 4000); 
@@ -214,14 +216,20 @@ bot.on(PlugAPI.events.ADVANCE, (data) => {
             }
         }
 
-        if (data.currentDJ) {
-            dataHandle.newDj(data.currentDJ);
-            dataHandle.newSong(data.media);
-        }
+        dataHandle.getConfig('storeHistory', (value) => {
+            if (value) {
+                if (data.currentDJ) {
+                    dataHandle.newDj(data.currentDJ);
+                    dataHandle.newSong(data.media);
+                }
 
-        if (data.lastPlay) {
-            dataHandle.insertPlay(ROOM, data.lastPlay.media, data.lastPlay.score, data.lastPlay.dj);
-        }
+                if (data.lastPlay) {
+                    dataHandle.newDj(data.lastPlay.dj);
+                    dataHandle.newSong(data.lastPlay.media);
+                    dataHandle.insertPlay(ROOM, data.lastPlay.media, data.lastPlay.score, data.lastPlay.dj);
+                }
+            }
+        });
     }
 });
 
