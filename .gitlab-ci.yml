@@ -14,5 +14,5 @@ build:
     - docker version
     - docker login -u gitlab-ci-token -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
     - docker pull $CI_REGISTRY_IMAGE || true
-    - docker build --cache-from $CI_REGISTRY_IMAGE:latest -t $CI_REGISTRY_IMAGE:latest .
+    - docker build --pull -t $CI_REGISTRY_IMAGE:latest .
     - docker push $CI_REGISTRY_IMAGE:latest
