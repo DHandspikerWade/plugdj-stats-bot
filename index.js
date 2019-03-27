@@ -67,11 +67,11 @@ if (!dataHandle.setConfig) {
     })();
 }
 
-let ROOM;
+let ROOM = '';
 if (typeof argv.r === 'string') {
     ROOM = argv.r;
 } else if (process.env.PLUGDJ_ROOM) {
-    ROOM = process.env.PLUGDJ_ROOM;
+    ROOM = '' + process.env.PLUGDJ_ROOM;
 } else {
     // TODO: this is going to need restructure to work
     // ROOM = dataHandle.getConfig('room');
@@ -111,7 +111,8 @@ bot.setLogger(logger);
 bot.deleteCommands = false;
 
 logger.info(LOGGER_DEFAULT_SOURCE, `Attempting to connect to "${ROOM}"`);
-bot.connect(ROOM);
+// PlugDJ is somehow unable to handle rooms with capital letters.
+bot.connect(ROOM.toLowerCase());
 
 // Sleep mode detection
 let lastHeartbeat = Date.now();
@@ -156,7 +157,7 @@ const reconnect = () => {
 
         setTimeout(() => {
             bot.connect(ROOM); 
-            
+
             dataHandle.getConfig('storeHistory', (value) => {
                 if (bot.getDJ() && bot.getMedia()) {
                     dataHandle.newDj(bot.getDJ());
