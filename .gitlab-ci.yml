@@ -7,7 +7,7 @@ stages:
 
 build:
   stage: build
-  image: docker:1.11
+  image: docker:19
   services:
     - docker:dind
   script:
