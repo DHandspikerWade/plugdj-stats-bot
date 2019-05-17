@@ -1,7 +1,9 @@
-const LOGGER_DEFAULT_SOURCE = 'SQLite';
-const DB_VERSION = 2;
+import { IStorage } from "./IStorage";
 
-module.exports = (logger) => {
+module.exports = (logger): IStorage => {
+    const LOGGER_DEFAULT_SOURCE = 'SQLite';
+    const DB_VERSION = 2;
+
     const sqlite3 = require('sqlite3');
 
     logger.info(LOGGER_DEFAULT_SOURCE,'Creating or verifying database.');

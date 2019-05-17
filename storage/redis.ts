@@ -1,8 +1,12 @@
-const LOGGER_DEFAULT_SOURCE = 'Redis';
+import { ClientOpts } from "redis";
+import { IConfigStorage } from "./IStorage";
 
-module.exports = (logger) => {
+
+module.exports = (logger): IConfigStorage => {
+    const LOGGER_DEFAULT_SOURCE = 'Redis';
+
     const redis = require('redis');
-    const redisOptions = {};
+    const redisOptions: ClientOpts  = {};
     const prefix = process.env.PLUGDJ_REDIS_PREFIX || 'PlugDJ';
 
     if (process.env.PLUGDJ_REDIS_HOST) {
@@ -10,7 +14,7 @@ module.exports = (logger) => {
     }
 
     if (process.env.PLUGDJ_REDIS_PORT) {
-        redisOptions.port = process.env.PLUGDJ_REDIS_PORT;
+        redisOptions.port = process.env.PLUGDJ_REDIS_PORT as any;
     }
 
     if (process.env.PLUGDJ_REDIS_PASSWORD) {

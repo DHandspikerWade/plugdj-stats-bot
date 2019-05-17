@@ -11,11 +11,14 @@
   "repository": "gitlab::DHandspikerWade/plugdj-stats-bot",
   "license": "ISC",
   "dependencies": {
+    "@types/plugapi": "^4.2.4",
+    "@types/redis": "^2.8.12",
     "dotenv": "^6.2.0",
     "jethro": "^4.3.2",
     "minimist": "^1.2.0",
     "plugapi": "^5.0.0",
     "redis": "^2.8.0",
-    "sqlite3": "^4.0.5"
+    "sqlite3": "^4.0.5",
+    "typescript": "^3.4.5"
   }
 }

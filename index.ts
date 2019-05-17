@@ -1,3 +1,5 @@
+import { IStorage } from "./storage/IStorage";
+
 const PlugAPI = require('plugapi');
 const fs = require('fs');
 const argv = require('minimist')(process.argv.slice(2));
@@ -5,7 +7,7 @@ const logger = new (require("jethro"))();
 
 require('dotenv').config();
 
-let dataHandle;
+let dataHandle: IStorage;
 if (process.env.PLUGDJ_REDIS) {
     dataHandle = require('./redis')(logger);
 } else {
@@ -81,7 +83,7 @@ const LOGGER_DEFAULT_SOURCE = 'StatsBot';
 
 logger.addToSourceWhitelist('console', LOGGER_DEFAULT_SOURCE);
 
-let botParams = {};
+let botParams:any = {};
 if ('e' in argv && 'p' in argv && typeof argv.e === 'string' && typeof argv.p  === 'string') {
     botParams.email = argv.e;  
     botParams.password = argv.p;
