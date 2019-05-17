@@ -21,6 +21,13 @@ module.exports = (logger) => {
         redisOptions.db = process.env.PLUGDJ_REDIS_DB;
     }
 
+    redisOptions.enable_offline_queue = true;
+    redisOptions.retry_unfulfilled_commands = true;
+    redisOptions.retry_strategy = function () {
+        // unless killed the bot should always try to reconnect every ten seconds
+        return 10e3;
+    };
+
     logger.info(LOGGER_DEFAULT_SOURCE, 'Attempting Redis connection');
     const client = redis.createClient(redisOptions);
 
