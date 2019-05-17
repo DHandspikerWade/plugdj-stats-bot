@@ -3,3 +3,4 @@ stats.sqlite
 .vscode
 config.json
 .env
+run.sh
