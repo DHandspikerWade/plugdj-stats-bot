@@ -53,17 +53,25 @@ module.exports = (logger) => {
             db.close(); logger.debug(LOGGER_DEFAULT_SOURCE, 'Closing SQLite database');
         },
         newDj: function (dj) {
-            logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to update dj ' + dj.id);
-            db.run('UPDATE dj SET username = ? WHERE id = ?', dj.username, dj.id, function (err) { // Must be long form function to use `this.changes`
-                if (err) throw err;
-        
-                if (this.changes == 0) {
-                    logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to insert dj ' + dj.id);
-                    db.run('INSERT INTO dj (username, id) VALUES (?, ?)', dj.username, dj.id, (err) => {
-                        if (err) logger.error(LOGGER_DEFAULT_SOURCE, err);
-                    });
-                }
+            let promise = new Promise((resolve, reject) => {
+                logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to update dj ' + dj.id);
+                db.run('UPDATE dj SET username = ? WHERE id = ?', dj.username, dj.id, function (err) { // Must be long form function to use `this.changes`
+                    if (err) throw err;
+            
+                    if (this.changes == 0) {
+                        logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to insert dj ' + dj.id);
+                        db.run('INSERT INTO dj (username, id) VALUES (?, ?)', dj.username, dj.id, (err) => {
+                            if (err) logger.error(LOGGER_DEFAULT_SOURCE, err);
+
+                            resolve();
+                        });
+                    } else {
+                        resolve();
+                    }
+                });
             });
+
+            return promise;
         },
         insertPlay: function (room, media, score, user) {
             if (media && 'cid' in media) {
@@ -84,17 +92,61 @@ module.exports = (logger) => {
             return false;
         },
         newSong: function (media) {
-            db.get('SELECT id FROM song WHERE cid = ?', media.cid, (err, row) => {
-                if (err) throw err;
-        
-                if (!row) {
-                    logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to insert song ' + media.id);
-                    db.run('INSERT INTO song (cid, author, title) VALUES (?,?,?)', media.cid, media.author, media.title);
-                } else {
-                    logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to update song ');
-                    db.run('UPDATE song  SET cid = ?, author = ?, title = ? WHERE cid = ?', media.cid, media.author, media.title, media.cid);
-                }
+            let promise = new Promise((complete, error) => {
+                let selectPromise = new Promise((resolve, reject) => {
+                    db.get('SELECT id FROM song WHERE cid = ?', media.cid, (err, row) => {
+                        if (err) reject(err);
+
+                        resolve(row);
+                    });
+                });
+
+                selectPromise.then((row) => {
+                    if (!row) {
+                        logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to insert song ' + media.id);
+                        db.run('INSERT INTO song (cid, author, title) VALUES (?,?,?)', [media.cid, media.author, media.title], () => {
+                            db.get('SELECT id FROM song WHERE cid = ?', media.cid, (err, row) => {
+                                complete(row.id);
+                            });
+                        });
+                    } else {
+                        logger.debug(LOGGER_DEFAULT_SOURCE, 'Attempting to update song ');
+                        db.run('UPDATE song  SET cid = ?, author = ?, title = ? WHERE cid = ?', [media.cid, media.author, media.title, media.cid], () => {
+                            complete(row.id);
+                        });
+                    }
+                });
             });
+
+            return promise;
+        },
+        importPlay: function(importRow) {
+            let promise = new Promise((resolve, reject) => {
+                db.get('SELECT id FROM song WHERE cid = ?', [importRow.cid], (err, row) => {
+                    if (err) throw 'Song ID mismatch';
+
+                    let updated;
+                    if (!row) {
+                        updated = this.newSong({cid: importRow.cid, title: 'N/A', author: 'N/A'});
+                    } else {
+                        updated = Promise.resolve(row.id);
+                    }
+                    
+                    updated.then((row_id) => {
+                        db.run('INSERT INTO play (song_id, room_slug, unixdate, dj_id, woots, grabs, mehs, skipped, listeners) VALUES (?, ?,?,?,?,?,?,?,?)', 
+                        [row_id, importRow.room, importRow.unixdate, importRow.dj_id, importRow.woots, importRow.grabs, importRow.mehs, importRow.skipped, importRow.listeners],
+                        () => {
+                            resolve();
+                        }
+                    );
+                    });
+                });
+            });
+
+            return promise;
+        },
+        importSong: function(importRow) {
+            this.newSong()
         }
     };
 };

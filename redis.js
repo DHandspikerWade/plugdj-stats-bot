@@ -110,5 +110,6 @@ module.exports = (logger) => {
 
             return returnPromise;
         },
+        getClient: function () { return client; }
     };
 };
