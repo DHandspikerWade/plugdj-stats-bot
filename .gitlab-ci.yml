@@ -7,7 +7,7 @@ stages:
 
 build:
   stage: build
-  image: docker:18
+  image: handspiker2/ci-tools:docker
   services:
     - docker:dind
   script:
