@@ -186,7 +186,7 @@ bot.on(PlugAPI.events.MODERATE_SKIP, (data) => {
     logger.info(LOGGER_DEFAULT_SOURCE, `You are currently level ${data.level} with: ${data.pp} PP and ${data.xp} XP `);
  });
 
-let latest_song;
+let latest_song, long_timeout_id;
 bot.on(PlugAPI.events.ADVANCE, (data) => {
     logger.debug(LOGGER_DEFAULT_SOURCE, 'Recieved ADVANCE event');
     if (data) {
@@ -194,7 +194,11 @@ bot.on(PlugAPI.events.ADVANCE, (data) => {
             logger.info(LOGGER_DEFAULT_SOURCE, 'Now playing: ' + data.media.title);
             latest_song = data.media.id;
 
-            setTimeout(() => {
+            if (long_timeout_id) {
+                clearTimeout(long_timeout_id);
+            }
+
+            long_timeout_id = setTimeout(() => {
                 logger.debug(LOGGER_DEFAULT_SOURCE, 'Checking connection status');
                 let currentMedia = bot.getMedia();
                 if (currentMedia && data.media.cid == currentMedia.cid) {
@@ -208,7 +212,10 @@ bot.on(PlugAPI.events.ADVANCE, (data) => {
                         reconnect();
                     }
                 }
-            }, (data.media.duration - bot.getTimeElapsed() + 5) * 1000); // Just use duration because 
+            }, Math.max(
+                ((data.media.duration + 3) - bot.getTimeElapsed()) * 1000,
+                10e3 // Have 10 seconds as the min wait time
+            )); 
 
             if (bot.getSelf()) {
                 dataHandle.getConfig('autoWoot', (value) => {
